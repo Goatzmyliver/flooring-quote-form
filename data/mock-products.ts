@@ -1,0 +1,63 @@
+// Mock products data as a fallback
+export const mockProducts = [
+  {
+    id: 1,
+    name: "Luxury Wool Carpet",
+    category: "carpet",
+    price: 89.99,
+    image: "/placeholder.svg?height=100&width=100",
+    rollWidth: 3.66,
+    colors: ["Beige", "Gray", "Navy Blue", "Forest Green", "Burgundy"],
+  },
+  {
+    id: 2,
+    name: "Berber Loop Pile",
+    category: "carpet",
+    price: 69.99,
+    image: "/placeholder.svg?height=100&width=100",
+    rollWidth: 3.66,
+    colors: ["Ivory", "Tan", "Charcoal", "Brown", "Slate"],
+  },
+  {
+    id: 3,
+    name: "Stain-Resistant Nylon",
+    category: "carpet",
+    price: 59.99,
+    image: "/placeholder.svg?height=100&width=100",
+    rollWidth: 4.0,
+    colors: ["Cream", "Light Gray", "Taupe", "Black", "Mocha"],
+  },
+  {
+    id: 4,
+    name: "Premium Vinyl Planks",
+    category: "vinyl",
+    price: 49.99,
+    image: "/placeholder.svg?height=100&width=100",
+    colors: ["Oak", "Maple", "Walnut", "Cherry", "Ash"],
+  },
+  {
+    id: 5,
+    name: "Waterproof Laminate",
+    category: "laminate",
+    price: 39.99,
+    image: "/placeholder.svg?height=100&width=100",
+    colors: ["Natural Oak", "Hickory", "Mahogany", "Driftwood", "Espresso"],
+  },
+  {
+    id: 6,
+    name: "Engineered Hardwood",
+    category: "hardwood",
+    price: 79.99,
+    image: "/placeholder.svg?height=100&width=100",
+    colors: ["Maple", "Oak", "Walnut", "Cherry", "Bamboo"],
+  },
+  {
+    id: 7,
+    name: "Ceramic Floor Tile",
+    category: "tile",
+    price: 29.99,
+    image: "/placeholder.svg?height=100&width=100",
+    colors: ["White", "Gray", "Beige", "Terracotta", "Black"],
+  },
+]
+

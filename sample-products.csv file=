@@ -1,0 +1,12 @@
+id,name,category,price,image,rollWidth,colors
+1,"Luxury Wool Carpet",carpet,89.99,/placeholder.svg?height=100&width=100,3.66,"Beige,Gray,Navy Blue,Forest Green,Burgundy"
+2,"Berber Loop Pile",carpet,69.99,/placeholder.svg?height=100&width=100,3.66,"Ivory,Tan,Charcoal,Brown,Slate"
+3,"Stain-Resistant Nylon",carpet,59.99,/placeholder.svg?height=100&width=100,4.0,"Cream,Light Gray,Taupe,Black,Mocha"
+4,"Premium Vinyl Planks",vinyl,49.99,/placeholder.svg?height=100&width=100,,"Oak,Maple,Walnut,Cherry,Ash"
+5,"Waterproof Laminate",laminate,39.99,/placeholder.svg?height=100&width=100,,"Natural Oak,Hickory,Mahogany,Driftwood,Espresso"
+6,"Engineered Hardwood",hardwood,79.99,/placeholder.svg?height=100&width=100,,"Maple,Oak,Walnut,Cherry,Bamboo"
+7,"Ceramic Floor Tile",tile,29.99,/placeholder.svg?height=100&width=100,,"White,Gray,Beige,Terracotta,Black"
+8,"Plush Saxony Carpet",carpet,64.99,/placeholder.svg?height=100&width=100,3.66,"Cream,Beige,Light Gray,Charcoal,Navy"
+9,"Commercial Grade Carpet",carpet,54.99,/placeholder.svg?height=100&width=100,4.0,"Gray,Blue,Brown,Green,Black"
+10,"Luxury Vinyl Tile",vinyl,44.99,/placeholder.svg?height=100&width=100,,"Marble,Slate,Travertine,Sandstone,Granite"
+
