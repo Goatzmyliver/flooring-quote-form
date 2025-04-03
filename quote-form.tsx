@@ -16,8 +16,8 @@ import { loadProductsFromStorage } from "./utils/csv-parser"
 // Import the mock products as a fallback
 import { mockProducts } from "./data/mock-products"
 
-// Add this import at the top of the file
-import PaymentButton from "./components/payment-button"
+// Remove the Stripe payment button import
+// Remove import PaymentButton from "./components/payment-button"
 
 // Extra services options
 const extraServices = [
@@ -364,6 +364,10 @@ export default function QuoteForm() {
       // Validate required fields for step 4 (quote)
       return formData.acceptTerms
     }
+    if (stepNumber === 5) {
+      // Validate required fields for step 5 (payment)
+      return formData.acceptTerms
+    }
     return stepsCompleted[stepNumber]
   }
 
@@ -536,8 +540,8 @@ export default function QuoteForm() {
                         : i === 3
                           ? "Room Calculator"
                           : i === 4
-                            ? "Quote & Payment"
-                            : "Confirm"}
+                            ? "Review Quote"
+                            : "Payment & Confirm"}
                   </span>
                 </div>
               ))}
@@ -898,12 +902,6 @@ export default function QuoteForm() {
                           </div>
                           <div>
                             <Label htmlFor={`stair-count-${index}`}>Number of Stairs</Label>
-                            value={room.width}
-                            onChange={(e) => updateRoom(index, "width", e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`stair-count-${index}`}>Number of Stairs</Label>
                             <Input
                               id={`stair-count-${index}`}
                               type="number"
@@ -1008,10 +1006,10 @@ export default function QuoteForm() {
               </div>
             )}
 
-            {/* Step 4: Quote & Payment */}
+            {/* Step 4: Quote Review */}
             {step === 4 && (
               <div>
-                <h3 className="text-xl font-medium mb-6">Quote & Payment</h3>
+                <h3 className="text-xl font-medium mb-6">Review Your Quote</h3>
 
                 {/* Quote Document */}
                 <div className="border p-6 rounded-md bg-white mb-6 print:shadow-none">
@@ -1177,6 +1175,25 @@ export default function QuoteForm() {
                   </div>
                 </div>
 
+                <div className="mb-8 print:hidden">
+                  <div className="flex items-start space-x-2">
+                    <Checkbox
+                      id="accept-terms"
+                      checked={formData.acceptTerms}
+                      onCheckedChange={(checked) => handleChange("acceptTerms", checked)}
+                    />
+                    <div>
+                      <Label htmlFor="accept-terms" className="font-medium cursor-pointer">
+                        I accept this quote and the terms and conditions
+                      </Label>
+                      <p className="text-sm text-gray-600">
+                        By accepting this quote, you agree to our terms and conditions, including payment terms and
+                        privacy policy.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Quote Actions */}
                 <div className="flex justify-end gap-3 mb-8 print:hidden">
                   <Button variant="outline" size="sm" onClick={printQuote}>
@@ -1187,6 +1204,44 @@ export default function QuoteForm() {
                     <Download className="h-4 w-4 mr-2" />
                     Download PDF
                   </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 5: Payment & Confirmation */}
+            {step === 5 && (
+              <div>
+                <h3 className="text-xl font-medium mb-6">Payment & Confirmation</h3>
+
+                {/* Payment Summary */}
+                <div className="border p-4 rounded-md bg-gray-50 mb-6 print:hidden">
+                  <h4 className="font-medium mb-3">Payment Summary</h4>
+                  <p className="text-sm text-gray-600 mb-3">
+                    This payment covers the cost of your flooring. For supply & install quotes, the balance for
+                    installation and additional services will be due within 10 days after job completion.
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span>${calculateTotalCost().toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Includes GST (15%):</span>
+                      <span>${calculateGST().toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-lg pt-2 border-t">
+                      <span>
+                        {formData.quoteType === "supply-install" ? "Deposit Amount (50%):" : "Total Amount Due:"}
+                      </span>
+                      <span>${calculateDepositAmount().toFixed(2)}</span>
+                    </div>
+                    {formData.quoteType === "supply-install" && (
+                      <p className="text-sm text-gray-600">
+                        Balance of ${(calculateTotalCost() - calculateDepositAmount()).toFixed(2)} due within 10 days of
+                        installation
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Payment Method */}
@@ -1227,81 +1282,14 @@ export default function QuoteForm() {
                   </RadioGroup>
                 </div>
 
-                {/* Terms and Conditions */}
-                <div className="mb-8 print:hidden">
-                  <div className="flex items-start space-x-2">
-                    <Checkbox
-                      id="accept-terms"
-                      checked={formData.acceptTerms}
-                      onCheckedChange={(checked) => handleChange("acceptTerms", checked)}
-                    />
-                    <div>
-                      <Label htmlFor="accept-terms" className="font-medium cursor-pointer">
-                        I accept the terms and conditions
-                      </Label>
-                      <p className="text-sm text-gray-600">
-                        By accepting this quote, you agree to our terms and conditions, including payment terms and
-                        privacy policy.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Payment Summary */}
-                <div className="border p-4 rounded-md bg-gray-50 mb-6 print:hidden">
-                  <h4 className="font-medium mb-3">Payment Summary</h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span>${calculateTotalCost().toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-gray-600">
-                      <span>Includes GST (15%):</span>
-                      <span>${calculateGST().toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                      <span>
-                        {formData.quoteType === "supply-install" ? "Deposit Amount (50%):" : "Total Amount Due:"}
-                      </span>
-                      <span>${calculateDepositAmount().toFixed(2)}</span>
-                    </div>
-                    {formData.quoteType === "supply-install" && (
-                      <p className="text-sm text-gray-600">
-                        Balance of ${(calculateTotalCost() - calculateDepositAmount()).toFixed(2)} due within 10 days of
-                        installation
-                      </p>
-                    )}
-                  </div>
-                  {/* Inside the step 4 section, add this code at the end of the "Payment Summary" div: */}
-                  <div className="mt-4">
-                    <PaymentButton
-                      amount={calculateDepositAmount()}
-                      quoteNumber={generateQuoteNumber()}
-                      customerName={formData.name}
-                      customerEmail={formData.email}
-                      productName={
-                        formData.selectedProducts.length > 0 ? formData.selectedProducts[0].name : "Flooring"
-                      }
-                      isDeposit={formData.quoteType === "supply-install"}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 5: Confirm (previously step 4) */}
-            {step === 5 && (
-              <div>
-                <h3 className="text-xl font-medium mb-6">Confirm Your Order</h3>
-
+                {/* Order Summary */}
                 <div className="mb-6">
                   <div className="border p-4 rounded-md bg-gray-50">
                     <h4 className="font-medium mb-3">Order Summary</h4>
                     <div className="space-y-2">
                       <p>
                         <span className="font-medium">Quote Type:</span>{" "}
-                        {formData.quoteType.replace("-", " & ").replace(/(^\w|\s\w)/g, (m) => m.toUpperCase())}
+                        {formData.quoteType === "supply-only" ? "Supply Only" : "Supply & Install"}
                       </p>
                       <p>
                         <span className="font-medium">Flooring Type:</span>{" "}
@@ -1347,28 +1335,6 @@ export default function QuoteForm() {
                           </ul>
                         </div>
                       )}
-
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="flex justify-between font-bold text-lg">
-                          <span>Total:</span>
-                          <span>${calculateTotalCost().toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Payment Method:</span>
-                          <span>
-                            {formData.paymentMethod === "direct-deposit"
-                              ? "Direct Bank Deposit"
-                              : formData.paymentMethod === "credit-card"
-                                ? "Credit Card (2% surcharge)"
-                                : "Pay In-Store"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between font-bold mt-2">
-                          <span>{formData.quoteType === "supply-install" ? "Deposit Amount:" : "Amount Due Now:"}</span>
-                          <span>${calculateDepositAmount().toFixed(2)}</span>
-                        </div>
-                        <p className="text-sm text-gray-500 mt-1">Includes applicable taxes</p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1408,11 +1374,18 @@ export default function QuoteForm() {
                   </div>
                 </div>
 
-                <div className="mb-6">
-                  <p className="text-sm text-gray-500">
-                    Thank you for your order! We'll process your request and contact you shortly to confirm details and
-                    arrange payment.
-                  </p>
+                <div className="mt-4">
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      alert(
+                        "Thank you for your order! We'll process your request and contact you shortly to confirm details and arrange payment.",
+                      )
+                    }}
+                    disabled={!formData.acceptTerms}
+                  >
+                    Submit Order
+                  </Button>
                 </div>
               </div>
             )}
@@ -1437,7 +1410,17 @@ export default function QuoteForm() {
                   Next
                 </Button>
               ) : (
-                <Button className="ml-auto">Submit Order</Button>
+                <Button
+                  className="ml-auto"
+                  onClick={() => {
+                    alert(
+                      "Thank you for your order! We'll process your request and contact you shortly to confirm details and arrange payment.",
+                    )
+                  }}
+                  disabled={!formData.acceptTerms}
+                >
+                  Submit Order
+                </Button>
               )}
             </div>
           </div>
