@@ -1,9 +1,9 @@
-import QuoteForm from "../quote-form"
+import QuoteFormSimplified from "../quote-form-simplified"
 
 export default function RequestQuotePage() {
   return (
-    <main>
-      <QuoteForm />
+    <main className="bg-gray-50 min-h-screen">
+      <QuoteFormSimplified />
     </main>
   )
 }

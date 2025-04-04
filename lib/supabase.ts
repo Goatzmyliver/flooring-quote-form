@@ -18,6 +18,16 @@ export type Product = {
   updated_at?: string
 }
 
+export type AdditionalService = {
+  id: number
+  label: string
+  price: number
+  description: string
+  flooring_types: string[] // Array of flooring types this service applies to
+  created_at?: string
+  updated_at?: string
+}
+
 export type Quote = {
   id?: number
   quote_number: string

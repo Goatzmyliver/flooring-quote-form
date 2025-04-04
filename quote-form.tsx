@@ -8,75 +8,15 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CheckCircle, Plus, Trash2, StepBackIcon as Stairs, Download, Printer } from "lucide-react"
+import { CheckCircle, Plus, Trash2, StepBackIcon as Stairs, Download, Printer, Mail } from "lucide-react"
 import ProductSelector from "./product-selector"
 import CarpetRollVisualizer from "./carpet-roll-visualizer"
+import EmailQuoteModal from "./email-quote-modal"
+import ToastNotification from "./toast-notification"
 
 // Import the mock products as a fallback
 import { mockProducts } from "./data/mock-products"
-
-// Remove the Stripe payment button import
-// Remove import PaymentButton from "./components/payment-button"
-
-// Extra services options
-const extraServices = [
-  {
-    id: "premium-underlay",
-    label: "Premium Underlay",
-    price: 180.0,
-    description: "Upgrade to Dunlop Opal 11mm 120kg foam underlay for better comfort and durability",
-    flooringTypes: ["carpet"],
-  },
-  {
-    id: "standard-underlay",
-    label: "Standard Underlay",
-    price: 120.0,
-    description: "Standard 8mm foam underlay for carpet installation",
-    flooringTypes: ["carpet"],
-  },
-  {
-    id: "floor-prep",
-    label: "Floor Preparation",
-    price: 250.0,
-    description: "Preparing the floor surface for installation",
-    flooringTypes: ["carpet", "vinyl", "laminate", "hardwood", "tile"],
-  },
-  {
-    id: "furniture-move",
-    label: "Furniture Moving",
-    price: 150.0,
-    description: "Moving furniture before and after installation",
-    flooringTypes: ["carpet", "vinyl", "laminate", "hardwood", "tile"],
-  },
-  {
-    id: "old-removal",
-    label: "Old Flooring Removal",
-    price: 200.0,
-    description: "Removal and disposal of existing flooring",
-    flooringTypes: ["carpet", "vinyl", "laminate", "hardwood", "tile"],
-  },
-  {
-    id: "smoothedge",
-    label: "New Smoothedge",
-    price: 120.0,
-    description: "Installation of new smoothedge or Naplock bars",
-    flooringTypes: ["carpet"],
-  },
-  {
-    id: "vinyl-adhesive",
-    label: "Premium Vinyl Adhesive",
-    price: 85.0,
-    description: "High-quality adhesive for vinyl flooring installation",
-    flooringTypes: ["vinyl"],
-  },
-  {
-    id: "moisture-barrier",
-    label: "Moisture Barrier",
-    price: 110.0,
-    description: "Protective barrier for laminate and hardwood floors",
-    flooringTypes: ["laminate", "hardwood"],
-  },
-]
+import type { AdditionalService } from "./lib/supabase"
 
 // Add a function to calculate broadloom meters from square meters
 const defaultRollWidth = 3.66 // Default carpet roll width
@@ -85,13 +25,58 @@ const calculateBroadloomMeters = (squareMeters, rollWidth = defaultRollWidth) =>
   return squareMeters / rollWidth
 }
 
+// Fallback additional services in case the API fails
+const fallbackExtraServices = [
+  {
+    id: 1,
+    label: "Premium Underlay",
+    price: 180.0,
+    description: "Upgrade to Dunlop Opal 11mm 120kg foam underlay for better comfort and durability",
+    flooring_types: ["carpet"],
+  },
+  {
+    id: 2,
+    label: "Standard Underlay",
+    price: 120.0,
+    description: "Standard 8mm foam underlay for carpet installation",
+    flooring_types: ["carpet"],
+  },
+  {
+    id: 3,
+    label: "Floor Preparation",
+    price: 250.0,
+    description: "Preparing the floor surface for installation",
+    flooring_types: ["carpet", "vinyl", "laminate", "hardwood", "tile"],
+  },
+  {
+    id: 4,
+    label: "Furniture Moving",
+    price: 150.0,
+    description: "Moving furniture before and after installation",
+    flooring_types: ["carpet", "vinyl", "laminate", "hardwood", "tile"],
+  },
+  {
+    id: 5,
+    label: "Old Flooring Removal",
+    price: 200.0,
+    description: "Removal and disposal of existing flooring",
+    flooring_types: ["carpet", "vinyl", "laminate", "hardwood", "tile"],
+  },
+]
+
 export default function QuoteForm() {
-  // Add state for products
+  // Add state for products and additional services
   const [products, setProducts] = useState<any[]>([])
+  const [extraServices, setExtraServices] = useState<AdditionalService[]>([])
 
   // Update the step state to include a new step for the calculator
   const [step, setStep] = useState(1)
   const [stepsCompleted, setStepsCompleted] = useState({ 1: false, 2: false, 3: false, 4: false, 5: false })
+
+  // Add these state variables inside the QuoteForm component, after the other useState declarations
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
+  const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null)
+  const quoteRef = useRef<HTMLDivElement>(null)
 
   // Update formData to ensure we have all customer fields
   const [formData, setFormData] = useState({
@@ -128,27 +113,40 @@ export default function QuoteForm() {
   // Add a ref to access the visualizer component
   const visualizerRef = useRef(null)
 
-  // Load products from localStorage on initial render
+  // Load products and additional services from Supabase on initial render
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch("/api/products")
-
-        if (!response.ok) {
+        // Fetch products
+        const productsResponse = await fetch("/api/products")
+        if (!productsResponse.ok) {
           throw new Error("Failed to fetch products")
         }
+        const productsData = await productsResponse.json()
+        setProducts(productsData.length > 0 ? productsData : mockProducts)
 
-        const data = await response.json()
-        setProducts(data)
+        // Fetch additional services
+        const servicesResponse = await fetch("/api/additional-services")
+        if (!servicesResponse.ok) {
+          throw new Error("Failed to fetch additional services")
+        }
+        const servicesData = await servicesResponse.json()
+        setExtraServices(servicesData.length > 0 ? servicesData : fallbackExtraServices)
       } catch (err) {
-        console.error("Error loading products:", err)
-        // Fall back to mock products
+        console.error("Error loading data:", err)
+        // Fall back to mock data
         setProducts(mockProducts)
+        setExtraServices(fallbackExtraServices)
       }
     }
 
-    fetchProducts()
+    fetchData()
   }, [])
+
+  // Filter extra services based on the selected flooring type
+  const getFilteredExtraServices = () => {
+    return extraServices.filter((service) => service.flooring_types.includes(formData.flooringType))
+  }
 
   const handleChange = (field: string, value: string | any) => {
     setFormData({ ...formData, [field]: value })
@@ -298,6 +296,17 @@ export default function QuoteForm() {
     return formData.rooms.reduce((total, room) => total + (room.carpetRequired || 0), 0)
   }
 
+  // Add this helper function after the calculateTotalBroadloomMeters function:
+
+  const getTotalStairCount = () => {
+    return formData.rooms.reduce((total, room) => {
+      if (room.isStairs && room.stairs) {
+        return total + Number(room.stairs)
+      }
+      return total
+    }, 0)
+  }
+
   // Calculate product cost
   const calculateProductCost = () => {
     if (formData.selectedProducts.length === 0) return 0
@@ -323,9 +332,20 @@ export default function QuoteForm() {
     }, 0)
   }
 
+  // Then update the calculateStairInstallationCost function to use this helper:
+
+  // Calculate stair installation cost ($30 per step)
+  const calculateStairInstallationCost = () => {
+    // Only apply for supply-install quotes
+    if (formData.quoteType !== "supply-install") return 0
+
+    // $30 per step
+    return getTotalStairCount() * 30
+  }
+
   // Calculate total cost
   const calculateTotalCost = () => {
-    return calculateProductCost() + calculateExtrasCost()
+    return calculateProductCost() + calculateExtrasCost() + calculateStairInstallationCost()
   }
 
   // Calculate GST
@@ -590,6 +610,22 @@ export default function QuoteForm() {
       console.error("Error submitting quote:", error)
       alert("There was an error submitting your quote. Please try again or contact us directly.")
     }
+  }
+
+  // Add this function inside the QuoteForm component, before the return statement
+  const getQuoteHtml = () => {
+    if (!quoteRef.current) return ""
+    return quoteRef.current.innerHTML
+  }
+
+  // Add this function to handle showing notifications
+  const showNotification = (message: string, type: "success" | "error") => {
+    setNotification({ message, type })
+  }
+
+  // Add this function to handle closing notifications
+  const closeNotification = () => {
+    setNotification(null)
   }
 
   // Replace the existing step indicator with this new one
@@ -901,23 +937,21 @@ export default function QuoteForm() {
                     </p>
 
                     <div className="space-y-3">
-                      {extraServices
-                        .filter((service) => service.flooringTypes.includes(formData.flooringType))
-                        .map((service) => (
-                          <div key={service.id} className="flex items-start space-x-2 p-3 border rounded-md">
-                            <Checkbox
-                              id={service.id}
-                              checked={formData.extraServices.includes(service.id)}
-                              onCheckedChange={() => toggleExtraService(service.id)}
-                            />
-                            <div className="flex-1">
-                              <Label htmlFor={service.id} className="font-medium cursor-pointer">
-                                {service.label} - ${service.price.toFixed(2)}
-                              </Label>
-                              <p className="text-sm text-gray-600">{service.description}</p>
-                            </div>
+                      {getFilteredExtraServices().map((service) => (
+                        <div key={service.id} className="flex items-start space-x-2 p-3 border rounded-md">
+                          <Checkbox
+                            id={`service-${service.id}`}
+                            checked={formData.extraServices.includes(service.id)}
+                            onCheckedChange={() => toggleExtraService(service.id)}
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor={`service-${service.id}`} className="font-medium cursor-pointer">
+                              {service.label} - ${service.price.toFixed(2)}
+                            </Label>
+                            <p className="text-sm text-gray-600">{service.description}</p>
                           </div>
-                        ))}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1109,7 +1143,7 @@ export default function QuoteForm() {
                 <h3 className="text-xl font-medium mb-6">Review Your Quote</h3>
 
                 {/* Quote Document */}
-                <div className="border p-6 rounded-md bg-white mb-6 print:shadow-none">
+                <div className="border p-6 rounded-md bg-white mb-6 print:shadow-none" ref={quoteRef}>
                   <div className="flex justify-between items-start mb-8">
                     <div>
                       <h2 className="text-2xl font-bold">Carpetland Ltd</h2>
@@ -1152,18 +1186,24 @@ export default function QuoteForm() {
                       to the {formData.rooms.map((r) => r.name).join(", ")}
                       {formData.quoteType === "supply-install" ? " on new smoothedge." : "."}
                     </p>
-
-                    {formData.quoteType === "supply-install" && (
-                      <p className="font-medium mb-4">
-                        TERMS: 50% Deposit on acceptance of quote and balance in full within 10 days of installation.
+                    {formData.quoteType === "supply-install" && formData.rooms.some((r) => r.isStairs) && (
+                      <p className="mb-4">
+                        This quote includes professional stair installation with secure fitting and finishing of all
+                        stair edges.
                       </p>
                     )}
 
-                    {formData.quoteType === "supply-only" && (
-                      <p className="font-medium mb-4">
-                        TERMS: Full payment required at time of order. Product will need to be collected as one roll.
-                      </p>
-                    )}
+                    <p className="mb-4">
+                      {formData.quoteType === "supply-install" ? (
+                        <span className="font-medium">
+                          TERMS: 50% Deposit on acceptance of quote and balance in full within 10 days of installation.
+                        </span>
+                      ) : (
+                        <span className="font-medium">
+                          TERMS: Full payment required at time of order. Product will need to be collected as one roll.
+                        </span>
+                      )}
+                    </p>
                   </div>
 
                   <div className="mb-8">
@@ -1229,6 +1269,30 @@ export default function QuoteForm() {
                             <td className="p-3 font-bold">Total NZD</td>
                             <td className="p-3 text-right font-bold">${calculateTotalCost().toFixed(2)}</td>
                           </tr>
+
+                          {/* Due on Acceptance */}
+                          <tr className="border-t bg-green-50">
+                            <td className="p-3 font-bold text-green-700">
+                              {formData.quoteType === "supply-install"
+                                ? "Deposit Due on Acceptance (50%)"
+                                : "Due on Acceptance (Full Amount)"}
+                            </td>
+                            <td className="p-3 text-right font-bold text-green-700">
+                              ${calculateDepositAmount().toFixed(2)}
+                            </td>
+                          </tr>
+
+                          {/* Remaining Balance - only for supply-install */}
+                          {formData.quoteType === "supply-install" && (
+                            <tr className="border-t bg-blue-50">
+                              <td className="p-3 font-medium text-blue-700">
+                                Remaining Balance (Due after installation)
+                              </td>
+                              <td className="p-3 text-right font-medium text-blue-700">
+                                ${(calculateTotalCost() - calculateDepositAmount()).toFixed(2)}
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1293,6 +1357,10 @@ export default function QuoteForm() {
 
                 {/* Quote Actions */}
                 <div className="flex justify-end gap-3 mb-8 print:hidden">
+                  <Button variant="outline" size="sm" onClick={() => setIsEmailModalOpen(true)}>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Email Quote
+                  </Button>
                   <Button variant="outline" size="sm" onClick={printQuote}>
                     <Printer className="h-4 w-4 mr-2" />
                     Print Quote
@@ -1432,6 +1500,20 @@ export default function QuoteForm() {
                           </ul>
                         </div>
                       )}
+
+                      {formData.quoteType === "supply-install" && calculateStairInstallationCost() > 0 && (
+                        <div className="mt-3">
+                          <p className="font-medium">Stair Installation:</p>
+                          <p className="text-sm ml-5">
+                            Professional stair installation for{" "}
+                            {formData.rooms.reduce(
+                              (total, room) => (room.isStairs && room.stairs ? total + Number(room.stairs) : total),
+                              0,
+                            )}{" "}
+                            steps
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1503,6 +1585,22 @@ export default function QuoteForm() {
           </div>
         </div>
       </div>
+      {isEmailModalOpen && (
+        <EmailQuoteModal
+          isOpen={isEmailModalOpen}
+          onClose={() => setIsEmailModalOpen(false)}
+          quoteHtml={getQuoteHtml()}
+          customerName={formData.name}
+          customerEmail={formData.email}
+          quoteNumber={generateQuoteNumber()}
+          onSuccess={() => showNotification("Quote sent successfully!", "success")}
+          onError={(message) => showNotification(`Failed to send email: ${message}`, "error")}
+        />
+      )}
+
+      {notification && (
+        <ToastNotification message={notification.message} type={notification.type} onClose={closeNotification} />
+      )}
     </div>
   )
 }

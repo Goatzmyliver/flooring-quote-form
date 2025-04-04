@@ -102,17 +102,89 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
       }
     })
 
-    // First, identify all strips needed for all rooms
+    // First, identify all pieces needed for all rooms
     const allPieces = []
 
+    // Process regular rooms first
+    const regularRooms = roomsWithDimensions.filter((room) => !room.isStairs)
+
+    // Determine if rotating all pieces would be more efficient
+    let totalAreaWithoutRotation = 0
+    let totalAreaWithRotation = 0
+    let totalLengthWithoutRotation = 0
+    let totalLengthWithRotation = 0
+
+    regularRooms.forEach((room) => {
+      // Calculate area (same regardless of rotation)
+      const area = room.numLength * room.numWidth
+      totalAreaWithoutRotation += area
+      totalAreaWithRotation += area
+
+      // Calculate length needed without rotation
+      const stripsNeededWithoutRotation = Math.ceil(room.numWidth / rollWidth)
+      const lengthWithoutRotation = stripsNeededWithoutRotation * (room.numLength + 0.2)
+      totalLengthWithoutRotation += lengthWithoutRotation
+
+      // Calculate length needed with rotation
+      const stripsNeededWithRotation = Math.ceil(room.numLength / rollWidth)
+      const lengthWithRotation = stripsNeededWithRotation * (room.numWidth + 0.2)
+      totalLengthWithRotation += lengthWithRotation
+    })
+
+    // Decide whether to rotate all pieces based on which orientation uses less carpet
+    // But allow user to override with the rotateAll state
+    const shouldRotateAll = totalLengthWithRotation < totalLengthWithoutRotation
+
+    // Process regular rooms with the chosen rotation strategy
+    regularRooms.forEach((room, roomIndex) => {
+      // Apply the same rotation strategy to all rooms
+      const width = shouldRotateAll ? room.numLength : room.numWidth
+      const length = shouldRotateAll ? room.numWidth : room.numLength
+
+      // If width is greater than roll width, we need to split into strips
+      if (width > rollWidth) {
+        const stripsNeeded = Math.ceil(width / rollWidth)
+
+        for (let i = 0; i < stripsNeeded; i++) {
+          const stripWidth = i < stripsNeeded - 1 ? rollWidth : width - rollWidth * (stripsNeeded - 1)
+
+          allPieces.push({
+            roomIndex,
+            roomName: room.name,
+            isStairs: false,
+            stripIndex: i,
+            totalStrips: stripsNeeded,
+            width: stripWidth,
+            length: length,
+            isRotated: shouldRotateAll,
+            area: stripWidth * length,
+          })
+        }
+      } else {
+        // Room fits within roll width as a single piece
+        allPieces.push({
+          roomIndex,
+          roomName: room.name,
+          isStairs: false,
+          stripIndex: 0,
+          totalStrips: 1,
+          width: width,
+          length: length,
+          isRotated: shouldRotateAll,
+          area: width * length,
+        })
+      }
+    })
+
+    // Now process stair pieces
     roomsWithDimensions.forEach((room, roomIndex) => {
-      // Check if this is a staircase
       if (room.isStairs && room.stairs) {
         const stairWidth = room.numWidth
         const stairDepth = 0.5 // 500mm per stair
         const stairs = Number.parseInt(room.stairs.toString()) || 0
 
-        // For staircases, create individual pieces for each stair
+        // For stairs, treat each stair as an individual piece that can be placed anywhere
+        // This maximizes efficiency while maintaining the constraint that stairs are never rotated
         for (let i = 0; i < stairs; i++) {
           allPieces.push({
             roomIndex,
@@ -123,195 +195,117 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
             stripIndex: i,
             totalStrips: stairs,
             stairNumber: i + 1,
+            area: stairWidth * stairDepth,
+            isRotated: false, // Stairs are NEVER rotated
           })
         }
-
-        // Skip the rest of the processing for staircases
-        return
-      }
-
-      // Regular room processing
-      // Determine best orientation for regular rooms
-      let bestWidth, bestLength
-      let isRotated = false
-
-      // For regular rooms, choose the orientation that minimizes waste
-      // Option 1: Original orientation
-      const option1 = {
-        width: room.numWidth,
-        length: room.numLength,
-      }
-
-      // Option 2: Rotated 90 degrees
-      const option2 = {
-        width: room.numLength,
-        length: room.numWidth,
-      }
-
-      // Choose the best option
-      if (option1.width <= rollWidth && option2.width <= rollWidth) {
-        // Both orientations fit within roll width, choose the one that's more efficient
-        if (option1.width <= option2.width) {
-          bestWidth = option1.width
-          bestLength = option1.length
-        } else {
-          bestWidth = option2.width
-          bestLength = option2.length
-          isRotated = true
-        }
-      } else if (option1.width <= rollWidth) {
-        bestWidth = option1.width
-        bestLength = option1.length
-      } else if (option2.width <= rollWidth) {
-        bestWidth = option2.width
-        bestLength = option2.length
-        isRotated = true
-      } else {
-        // Room is wider than roll in both orientations, need multiple strips
-        // Choose orientation that minimizes the number of strips
-        const strips1 = Math.ceil(option1.width / rollWidth)
-        const strips2 = Math.ceil(option2.width / rollWidth)
-
-        if (strips1 <= strips2) {
-          bestWidth = option1.width
-          bestLength = option1.length
-        } else {
-          bestWidth = option2.width
-          bestLength = option2.length
-          isRotated = true
-        }
-      }
-
-      // If room is wider than roll width, it needs multiple strips
-      if (bestWidth > rollWidth) {
-        const stripsNeeded = Math.ceil(bestWidth / rollWidth)
-
-        // Create individual strips
-        for (let i = 0; i < stripsNeeded; i++) {
-          const stripWidth = i < stripsNeeded - 1 ? rollWidth : bestWidth - rollWidth * (stripsNeeded - 1)
-
-          allPieces.push({
-            roomIndex,
-            roomName: room.name,
-            isStairs: false,
-            stripIndex: i,
-            totalStrips: stripsNeeded,
-            width: stripWidth,
-            length: bestLength,
-            isRotated,
-          })
-        }
-      } else {
-        // Room fits within roll width
-        allPieces.push({
-          roomIndex,
-          roomName: room.name,
-          isStairs: false,
-          stripIndex: 0,
-          totalStrips: 1,
-          width: bestWidth,
-          length: bestLength,
-          isRotated,
-        })
       }
     })
 
-    // Sort pieces by area (descending) to place larger pieces first
+    // Sort pieces by height (length) descending for better packing
     allPieces.sort((a, b) => {
-      // Calculate area (with cutting margin for regular pieces)
-      const aArea = a.width * (a.length + (a.isStairs ? 0 : 0.2))
-      const bArea = b.width * (b.length + (b.isStairs ? 0 : 0.2))
-      return bArea - aArea
+      // First sort by length (height in the bin)
+      const lengthDiff = b.length + (b.isStairs ? 0 : 0.2) - (a.length + (a.isStairs ? 0 : 0.2))
+      if (Math.abs(lengthDiff) > 0.01) return lengthDiff
+
+      // If lengths are similar, sort by width descending
+      return b.width - a.width
     })
 
     // Initialize the layout
-    const layout: PlacedPiece[] = []
+    const layout = []
 
-    // Initialize the spaces list with a single space covering the entire roll
-    // We don't know the length yet, so we'll use a very large number
-    const spaces: Space[] = [{ x: 0, y: 0, width: rollWidth, height: 1000 }]
+    // We'll use a shelf-based bin packing algorithm
+    // Each "shelf" is a horizontal strip across the roll width
+    const shelves = []
 
-    // Place each piece
+    // Process each piece
     allPieces.forEach((piece) => {
       // Add cutting margin for regular pieces
       const pieceHeight = piece.length + (piece.isStairs ? 0 : 0.2)
 
-      // Find the best space for this piece
-      let bestSpace = null
-      let bestY = Number.POSITIVE_INFINITY
+      // Try to place the piece on an existing shelf
+      let placed = false
 
-      for (let i = 0; i < spaces.length; i++) {
-        const space = spaces[i]
+      for (let i = 0; i < shelves.length; i++) {
+        const shelf = shelves[i]
 
-        // Check if the piece fits in this space
-        if (piece.width <= space.width && pieceHeight <= space.height) {
-          // This space works - is it better than our current best?
-          if (space.y < bestY) {
-            bestSpace = { spaceIndex: i, space }
-            bestY = space.y
+        // Check if there's enough space on this shelf
+        if (shelf.remainingWidth >= piece.width) {
+          // Place the piece on this shelf
+          const placedPiece = {
+            ...piece,
+            x: shelf.currentX,
+            y: shelf.y,
           }
+
+          layout.push(placedPiece)
+
+          // Update shelf information
+          shelf.currentX += piece.width
+          shelf.remainingWidth -= piece.width
+          shelf.height = Math.max(shelf.height, pieceHeight)
+
+          placed = true
+          break
         }
       }
 
-      // If we found a space, place the piece
-      if (bestSpace) {
-        const { spaceIndex, space } = bestSpace
+      // If the piece couldn't be placed on any existing shelf, create a new shelf
+      if (!placed) {
+        // Calculate the y-coordinate for the new shelf
+        const y = shelves.length > 0 ? shelves[shelves.length - 1].y + shelves[shelves.length - 1].height : 0
 
-        // Place the piece at the top-left of the space
-        const placedPiece: PlacedPiece = {
+        // Create a new shelf
+        const newShelf = {
+          y,
+          currentX: piece.width,
+          remainingWidth: rollWidth - piece.width,
+          height: pieceHeight,
+        }
+
+        shelves.push(newShelf)
+
+        // Place the piece on the new shelf
+        const placedPiece = {
           ...piece,
-          x: space.x,
-          y: space.y,
+          x: 0,
+          y,
         }
 
         layout.push(placedPiece)
-
-        // Remove the used space
-        spaces.splice(spaceIndex, 1)
-
-        // Create new spaces from the remaining area
-        // Space to the right of the piece
-        if (space.width > piece.width) {
-          spaces.push({
-            x: space.x + piece.width,
-            y: space.y,
-            width: space.width - piece.width,
-            height: pieceHeight,
-          })
-        }
-
-        // Space below the piece
-        if (space.height > pieceHeight) {
-          spaces.push({
-            x: space.x,
-            y: space.y + pieceHeight,
-            width: piece.width,
-            height: space.height - pieceHeight,
-          })
-        }
-
-        // Space to the right and below the piece
-        if (space.width > piece.width && space.height > pieceHeight) {
-          spaces.push({
-            x: space.x + piece.width,
-            y: space.y + pieceHeight,
-            width: space.width - piece.width,
-            height: space.height - pieceHeight,
-          })
-        }
-      } else {
-        // No space found - this shouldn't happen with our large initial space
-        console.error("No space found for piece", piece)
       }
     })
 
-    // Calculate the total length by finding the maximum y + height of all pieces
-    const totalLength = layout.reduce((max, piece) => {
-      const pieceBottom = piece.y + piece.length + (piece.isStairs ? 0 : 0.2)
-      return Math.max(max, pieceBottom)
-    }, 0)
+    // Calculate the total length by finding the bottom of the last shelf
+    const totalLength = shelves.length > 0 ? shelves[shelves.length - 1].y + shelves[shelves.length - 1].height : 0
 
     return { totalLength, layout }
+  }
+
+  // Add this function after the calculateOptimizedLayout function
+  const calculateLayoutEfficiency = () => {
+    if (!optimizedLayout.layout || optimizedLayout.layout.length === 0) {
+      return { efficiency: 0, totalArea: 0, usedArea: 0 }
+    }
+
+    // Calculate the total area of all pieces
+    const totalPieceArea = optimizedLayout.layout.reduce((sum, piece) => {
+      const pieceArea = piece.width * piece.length
+      return sum + pieceArea
+    }, 0)
+
+    // Calculate the total area of the carpet roll
+    const totalRollArea = rollWidth * optimizedLayout.totalLength
+
+    // Calculate efficiency as a percentage
+    const efficiency = (totalPieceArea / totalRollArea) * 100
+
+    return {
+      efficiency: Math.round(efficiency),
+      totalArea: totalRollArea,
+      usedArea: totalPieceArea,
+    }
   }
 
   // Expose functions to parent component
@@ -443,12 +437,19 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
     ]
 
     // Draw each piece in the layout
-    layout.forEach((piece) => {
+    layout.forEach((piece, index) => {
       const colorIndex = piece.roomIndex % colors.length
       const baseColor = colors[colorIndex]
 
       // For stair pieces, use a slightly different shade
-      const color = piece.isStairs ? shadeColor(baseColor, -10) : baseColor
+      // For different strips of the same room, use different shades
+      let color = baseColor
+      if (piece.isStairs) {
+        color = shadeColor(baseColor, -10)
+      } else if (piece.stripIndex > 0) {
+        // Alternate shades for different strips of the same room
+        color = shadeColor(baseColor, piece.stripIndex % 2 === 0 ? 10 : -10)
+      }
 
       const x = 50 + piece.x * scale
       const y = 50 + piece.y * scale
@@ -479,12 +480,18 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
           ctx.font = "12px Arial"
           ctx.textAlign = "center"
 
-          // Show the stair number information
-          ctx.fillText(`${piece.roomName} ${piece.stairNumber}/${piece.totalStrips}`, x + width / 2, y + height / 2 - 5)
+          // Show the stair information
+          ctx.fillText(`${piece.roomName}`, x + width / 2, y + height / 2 - 5)
+
+          // Show stair count
+          if (piece.stairCount) {
+            ctx.font = "10px Arial"
+            ctx.fillText(`${piece.stairCount} stairs`, x + width / 2, y + height / 2 + 10)
+          }
 
           // Dimensions
           ctx.font = "10px Arial"
-          ctx.fillText(`${piece.width.toFixed(1)}m × ${piece.length.toFixed(1)}m`, x + width / 2, y + height / 2 + 10)
+          ctx.fillText(`${piece.width.toFixed(1)}m × ${piece.length.toFixed(1)}m`, x + width / 2, y + height / 2 + 25)
         } else {
           // Regular room labels
           ctx.font = "12px Arial"
@@ -504,6 +511,24 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
             ctx.fillText("(rotated)", x + width / 2, y + height / 2 + 25)
           }
         }
+      }
+
+      // For stair pieces, draw lines to indicate individual stairs
+      if (piece.isStairs && piece.stairCount && piece.stairCount > 1) {
+        const stairDepth = 0.5 // 500mm per stair
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.3)"
+        ctx.setLineDash([2, 2])
+
+        // Draw horizontal lines to indicate individual stairs
+        for (let i = 1; i < piece.stairCount; i++) {
+          const stairY = y + i * stairDepth * scale
+          ctx.beginPath()
+          ctx.moveTo(x, stairY)
+          ctx.lineTo(x + width, stairY)
+          ctx.stroke()
+        }
+
+        ctx.setLineDash([])
       }
     })
 
@@ -561,7 +586,7 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
       if (stairPieces > 0 && regularPieces > 0) {
         rowLabel += ` (${regularPieces} room + ${stairPieces} stair)`
       } else if (stairPieces > 0) {
-        rowLabel += ` (${stairPieces} stair pieces)`
+        rowLabel += ` (${stairPieces} stair strips)`
       } else if (regularPieces > 1) {
         rowLabel += ` (${regularPieces} pieces)`
       }
@@ -592,73 +617,94 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
       return "Add rooms to see the interlocking calculation."
     }
 
-    // Group pieces by their y-coordinate to identify rows
-    const rows = optimizedLayout.layout.reduce((acc, piece) => {
+    // Group pieces by their y-coordinate to identify shelves
+    const shelves = optimizedLayout.layout.reduce((acc, piece) => {
       const y = piece.y
       const height = piece.length + (piece.isStairs ? 0 : 0.2)
 
-      // Find if this piece belongs to an existing row
-      const rowIndex = acc.findIndex((row) => Math.abs(row.y - y) < 0.01)
+      // Find if this piece belongs to an existing shelf
+      const shelfIndex = acc.findIndex((shelf) => Math.abs(shelf.y - y) < 0.01)
 
-      if (rowIndex === -1) {
-        // Create a new row
+      if (shelfIndex === -1) {
+        // Create a new shelf
         acc.push({
           y,
           height,
           pieces: [piece],
         })
       } else {
-        // Add to existing row
-        acc[rowIndex].height = Math.max(acc[rowIndex].height, height)
-        acc[rowIndex].pieces.push(piece)
+        // Add to existing shelf
+        acc[shelfIndex].height = Math.max(acc[shelfIndex].height, height)
+        acc[shelfIndex].pieces.push(piece)
       }
 
       return acc
     }, [])
 
-    // Sort rows by y-coordinate
-    rows.sort((a, b) => a.y - b.y)
+    // Sort shelves by y-coordinate
+    shelves.sort((a, b) => a.y - b.y)
 
     // Count stair pieces
     const stairPieces = optimizedLayout.layout.filter((piece) => piece.isStairs).length
 
-    // Count mixed rows (rows with both regular pieces and stair pieces)
-    const mixedRows = rows.filter((row) => {
-      const hasStairs = row.pieces.some((p) => p.isStairs)
-      const hasRegular = row.pieces.some((p) => !p.isStairs)
+    // Count mixed shelves (shelves with both regular pieces and stair pieces)
+    const mixedShelves = shelves.filter((shelf) => {
+      const hasStairs = shelf.pieces.some((p) => p.isStairs)
+      const hasRegular = shelf.pieces.some((p) => !p.isStairs)
       return hasStairs && hasRegular
     }).length
 
+    // Count pieces that were rotated
+    const rotatedPieces = optimizedLayout.layout.filter((piece) => piece.isRotated).length
+    const totalPieces = optimizedLayout.layout.length
+
+    // Count stair strips (grouped stair pieces)
+    const stairStrips = optimizedLayout.layout.filter((piece) => piece.isStairs).length
+
     return (
       <div className="text-sm">
-        <p className="mb-2">The total broadloom meters is calculated by adding the height of each row:</p>
+        <p className="mb-2">The carpet is laid out in {shelves.length} horizontal shelves across the roll width:</p>
         <ul className="list-disc pl-5 space-y-1">
-          {rows.map((row, index) => {
-            const stairPiecesInRow = row.pieces.filter((p) => p.isStairs).length
-            const regularPiecesInRow = row.pieces.filter((p) => !p.isStairs).length
+          {shelves.map((shelf, index) => {
+            const stairPiecesInShelf = shelf.pieces.filter((p) => p.isStairs).length
+            const regularPiecesInShelf = shelf.pieces.filter((p) => !p.isStairs).length
+            const totalWidthUsed = shelf.pieces.reduce((sum, p) => sum + p.width, 0)
+            const efficiencyPercent = Math.min(100, Math.round((totalWidthUsed / rollWidth) * 100))
 
-            let rowDescription = ""
-            if (stairPiecesInRow > 0 && regularPiecesInRow > 0) {
-              rowDescription = ` (${regularPiecesInRow} room + ${stairPiecesInRow} stair)`
-            } else if (stairPiecesInRow > 0) {
-              rowDescription = ` (${stairPiecesInRow} stair pieces)`
-            } else if (regularPiecesInRow > 1) {
-              rowDescription = ` (${regularPiecesInRow} pieces)`
+            let shelfDescription = ""
+            if (stairPiecesInShelf > 0 && regularPiecesInShelf > 0) {
+              shelfDescription = ` (${regularPiecesInShelf} room + ${stairPiecesInShelf} stair)`
+            } else if (stairPiecesInShelf > 0) {
+              shelfDescription = ` (${stairPiecesInShelf} stair strips)`
+            } else if (regularPiecesInShelf > 1) {
+              shelfDescription = ` (${regularPiecesInShelf} pieces)`
             }
 
             return (
               <li key={index}>
-                Row {index + 1}: {row.height.toFixed(2)}m{rowDescription}
+                Shelf {index + 1}: {shelf.height.toFixed(2)}m high, {efficiencyPercent}% width utilized
+                {shelfDescription}
               </li>
             )
           })}
           <li className="font-medium">Total: {optimizedLayout.totalLength.toFixed(2)}m</li>
         </ul>
-        {stairPieces > 0 && (
-          <p className="mt-2 text-green-600">
-            Optimized layout includes {stairPieces} stair pieces with {mixedRows} mixed rows to minimize waste.
+        {rotatedPieces > 0 && (
+          <p className="mt-2 text-blue-600">
+            All regular room pieces are rotated for optimal material usage (carpet nap direction is maintained). The
+            algorithm automatically determined this is the most efficient layout.
           </p>
         )}
+        {stairStrips > 0 && (
+          <p className="mt-2 text-green-600">
+            Stair pieces are placed individually to minimize carpet usage while maintaining proper orientation. Stairs
+            are never rotated regardless of the main carpet direction.
+          </p>
+        )}
+        <p className="mt-2 text-blue-600">
+          This bin packing algorithm places pieces on horizontal shelves across the roll width, maximizing material
+          usage while respecting carpet nap direction for regular rooms and proper orientation for stairs.
+        </p>
       </div>
     )
   }
@@ -671,7 +717,8 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
       <h3 className="font-medium">Carpet Roll Layout ({rollWidth}m wide)</h3>
       <p className="text-sm text-gray-600 mb-4">
         The layout below shows the most efficient way to cut your carpet with interlocked strips.
-        {stairPieceCount > 0 && ` Individual stair pieces (${stairPieceCount}) are arranged to minimize waste.`}
+        {stairPieceCount > 0 &&
+          ` Stair pieces are placed individually to minimize carpet usage while maintaining proper orientation.`}
       </p>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
@@ -705,11 +752,31 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
       </div>
 
       <div className="mt-4 p-3 border rounded-md bg-white">
-        <div className="flex justify-between items-start">
-          <span className="font-medium">Total Carpet Required:</span>
-          <div className="text-right">
-            <span className="font-bold">{getTotalBroadloomMeters().toFixed(2)} broadloom meters</span>
-            <div className="mt-2">{explainInterlocking()}</div>
+        <div className="flex flex-col gap-2">
+          <div className="flex justify-between items-start">
+            <span className="font-medium">Total Carpet Required:</span>
+            <div className="text-right">
+              <span className="font-bold">{getTotalBroadloomMeters().toFixed(2)} broadloom meters</span>
+              {optimizedLayout.layout.length > 0 && (
+                <div className="mt-1 text-sm">
+                  <div className="flex items-center justify-end gap-2">
+                    <span>Efficiency:</span>
+                    <div className="w-24 h-4 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-green-500"
+                        style={{ width: `${calculateLayoutEfficiency().efficiency}%` }}
+                      ></div>
+                    </div>
+                    <span className="font-medium">{calculateLayoutEfficiency().efficiency}%</span>
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    {calculateLayoutEfficiency().usedArea.toFixed(2)}m² used of{" "}
+                    {calculateLayoutEfficiency().totalArea.toFixed(2)}m² total
+                  </div>
+                </div>
+              )}
+              <div className="mt-2">{explainInterlocking()}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -726,12 +793,18 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
 
             if (!isValid) return null
 
+            // Find all pieces in the layout for this room
+            const roomPieces = optimizedLayout.layout.filter((piece) => piece.roomIndex === index)
+            const isRotated = roomPieces.some((piece) => piece.isRotated)
+            const totalPieces = roomPieces.length
+
             return (
               <div key={index} className="border rounded-md p-3 bg-gray-50">
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium flex items-center gap-2">
                     {room.name}
                     {room.isStairs && <span className="text-xs bg-gray-200 px-2 py-1 rounded">Stairs</span>}
+                    {isRotated && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Rotated</span>}
                   </span>
                 </div>
 
@@ -755,6 +828,9 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
 
                 <div className="mt-2 text-xs">
                   <div>Area: {room.area || (length * width).toFixed(2)} m²</div>
+                  {totalPieces > 1 && !room.isStairs && (
+                    <div className="text-blue-600">Cut into {totalPieces} pieces for optimal layout</div>
+                  )}
                 </div>
 
                 {width > rollWidth && (
@@ -766,7 +842,8 @@ const CarpetRollVisualizer = forwardRef(({ rooms, rollWidth = 3.66, onUpdateRoom
 
                 {room.isStairs && (
                   <div className="mt-2 text-xs text-green-600">
-                    Stair pieces will be arranged individually for optimal material usage.
+                    Stair pieces are placed individually to minimize carpet usage. Stairs are never rotated regardless
+                    of the main carpet direction.
                   </div>
                 )}
               </div>

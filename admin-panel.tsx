@@ -4,9 +4,10 @@ import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Settings, Package, FileText, Users, ArrowLeft, Loader2 } from "lucide-react"
+import { Settings, Package, FileText, Users, ArrowLeft, Loader2, Plus } from "lucide-react"
 import ProductManagement from "./product-management"
-import type { Product } from "./lib/supabase"
+import AdditionalServiceManagement from "./additional-service-management"
+import type { Product, AdditionalService } from "./lib/supabase"
 
 interface AdminPanelProps {
   onExit: () => void
@@ -15,26 +16,34 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ onExit, mockProducts }: AdminPanelProps) {
   const [products, setProducts] = useState<Product[]>([])
+  const [additionalServices, setAdditionalServices] = useState<AdditionalService[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
         setIsLoading(true)
         setError(null)
 
-        const response = await fetch("/api/products")
-
-        if (!response.ok) {
+        // Fetch products
+        const productsResponse = await fetch("/api/products")
+        if (!productsResponse.ok) {
           throw new Error("Failed to fetch products")
         }
+        const productsData = await productsResponse.json()
+        setProducts(productsData)
 
-        const data = await response.json()
-        setProducts(data)
+        // Fetch additional services
+        const servicesResponse = await fetch("/api/additional-services")
+        if (!servicesResponse.ok) {
+          throw new Error("Failed to fetch additional services")
+        }
+        const servicesData = await servicesResponse.json()
+        setAdditionalServices(servicesData)
       } catch (err) {
-        console.error("Error loading products:", err)
-        setError("Failed to load products. Using mock data instead.")
+        console.error("Error loading data:", err)
+        setError("Failed to load data. Using mock data instead.")
         // Fall back to mock products
         setProducts(mockProducts)
       } finally {
@@ -42,11 +51,15 @@ export default function AdminPanel({ onExit, mockProducts }: AdminPanelProps) {
       }
     }
 
-    fetchProducts()
+    fetchData()
   }, [mockProducts])
 
   const handleProductsChange = (updatedProducts: Product[]) => {
     setProducts(updatedProducts)
+  }
+
+  const handleServicesChange = (updatedServices: AdditionalService[]) => {
+    setAdditionalServices(updatedServices)
   }
 
   return (
@@ -106,10 +119,14 @@ export default function AdminPanel({ onExit, mockProducts }: AdminPanelProps) {
         </div>
       ) : (
         <Tabs defaultValue="products">
-          <TabsList className="grid w-full grid-cols-4 mb-8">
+          <TabsList className="grid w-full grid-cols-5 mb-8">
             <TabsTrigger value="products" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Products
+            </TabsTrigger>
+            <TabsTrigger value="services" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Additional Services
             </TabsTrigger>
             <TabsTrigger value="quotes" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
@@ -127,6 +144,10 @@ export default function AdminPanel({ onExit, mockProducts }: AdminPanelProps) {
 
           <TabsContent value="products">
             <ProductManagement onProductsChange={handleProductsChange} initialProducts={products} />
+          </TabsContent>
+
+          <TabsContent value="services">
+            <AdditionalServiceManagement onServicesChange={handleServicesChange} initialServices={additionalServices} />
           </TabsContent>
 
           <TabsContent value="quotes">
