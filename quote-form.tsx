@@ -1498,11 +1498,7 @@ export default function QuoteForm() {
                 >
                   Next
                 </Button>
-              ) : (
-                <Button className="ml-auto" onClick={submitQuote} disabled={!formData.acceptTerms}>
-                  Submit Order
-                </Button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
