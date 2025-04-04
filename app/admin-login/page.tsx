@@ -17,14 +17,28 @@ export default function AdminLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Update the handleLogin function
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
-    // Simple authentication - in a real app, this would be a server-side check
-    // with proper password hashing and security measures
-    if (username === "admin" && password === "flooring123") {
+    try {
+      // In a real implementation, you would use Supabase auth.signIn
+      // For now, we'll use a simple API endpoint to check credentials
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username, password }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Invalid username or password")
+      }
+
       // Set a session token in localStorage
       localStorage.setItem(
         "adminAuth",
@@ -36,8 +50,9 @@ export default function AdminLoginPage() {
 
       // Redirect to admin dashboard
       router.push("/admin-dashboard")
-    } else {
-      setError("Invalid username or password")
+    } catch (err: any) {
+      setError(err.message || "Invalid username or password")
+    } finally {
       setIsLoading(false)
     }
   }

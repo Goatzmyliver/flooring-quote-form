@@ -12,7 +12,7 @@ interface Product {
   category: string
   price: number
   image: string
-  rollWidth?: number
+  roll_width?: number
   colors?: string[]
 }
 
@@ -65,11 +65,11 @@ export default function ProductSelector({
                 <div className="mb-2">
                   <h3 className="font-medium">{product.name}</h3>
                   <p className="text-sm text-gray-500">
-                    ${(product.price * (product.rollWidth || 3.66)).toFixed(2)} per broadloom meter
+                    ${(product.price * (product.roll_width || 3.66)).toFixed(2)} per broadloom meter
                     <span className="text-xs block">(${product.price.toFixed(2)} per m²)</span>
                   </p>
                   {product.category === "carpet" && (
-                    <span className="text-xs text-gray-500 block">{product.rollWidth || 3.66}m wide roll</span>
+                    <span className="text-xs text-gray-500 block">{product.roll_width || 3.66}m wide roll</span>
                   )}
                 </div>
                 <Button

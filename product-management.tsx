@@ -1,37 +1,61 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+
+import { Input } from "@/components/ui/input"
+
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Pencil, Trash2, Plus, Save, X, Database } from "lucide-react"
 import ProductUpload from "./product-upload"
-import { loadProductsFromStorage, saveProductsToStorage } from "./utils/csv-parser"
+import type { Product } from "./lib/supabase"
 
 interface ProductManagementProps {
-  onProductsChange: (products: any[]) => void
-  initialProducts?: any[]
+  onProductsChange: (products: Product[]) => void
+  initialProducts?: Product[]
 }
 
 export default function ProductManagement({ onProductsChange, initialProducts = [] }: ProductManagementProps) {
-  const [products, setProducts] = useState<any[]>([])
-  const [filteredProducts, setFilteredProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
-  const [editingProduct, setEditingProduct] = useState<any | null>(null)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [activeTab, setActiveTab] = useState("browse")
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Load products from localStorage on initial render
+  // Load products from Supabase on initial render
   useEffect(() => {
-    const storedProducts = loadProductsFromStorage()
-    if (storedProducts && storedProducts.length > 0) {
-      setProducts(storedProducts)
-    } else if (initialProducts.length > 0) {
-      setProducts(initialProducts)
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const response = await fetch("/api/products")
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch products")
+        }
+
+        const data = await response.json()
+        setProducts(data)
+      } catch (err) {
+        console.error("Error loading products:", err)
+        setError("Failed to load products. Please try again.")
+        // Fall back to initial products if provided
+        if (initialProducts.length > 0) {
+          setProducts(initialProducts)
+        }
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    fetchProducts()
   }, [initialProducts])
 
   // Update filtered products when products, search term, or category filter changes
@@ -54,15 +78,40 @@ export default function ProductManagement({ onProductsChange, initialProducts = 
     onProductsChange(products)
   }, [products, onProductsChange])
 
-  const handleProductsUploaded = (newProducts: any[]) => {
-    setProducts(newProducts)
-    saveProductsToStorage(newProducts)
-    setActiveTab("browse")
+  const handleProductsUploaded = async (newProducts: Product[]) => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      // Insert each product via the API
+      const uploadPromises = newProducts.map((product) =>
+        fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(product),
+        }),
+      )
+
+      await Promise.all(uploadPromises)
+
+      // Refresh the product list
+      const response = await fetch("/api/products")
+      if (!response.ok) throw new Error("Failed to refresh products")
+
+      const data = await response.json()
+      setProducts(data)
+      setActiveTab("browse")
+    } catch (err) {
+      console.error("Error uploading products:", err)
+      setError("Failed to upload products. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleAddProduct = () => {
     const newProduct = {
-      id: Date.now().toString(), // Generate a unique ID
+      id: 0, // Will be assigned by the database
       name: "New Product",
       category: "carpet",
       price: 0,
@@ -74,35 +123,69 @@ export default function ProductManagement({ onProductsChange, initialProducts = 
     setActiveTab("edit")
   }
 
-  const handleEditProduct = (product: any) => {
+  const handleEditProduct = (product: Product) => {
     setEditingProduct({ ...product })
     setActiveTab("edit")
   }
 
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: number) => {
     if (confirm("Are you sure you want to delete this product?")) {
-      const updatedProducts = products.filter((p) => p.id !== productId)
-      setProducts(updatedProducts)
-      saveProductsToStorage(updatedProducts)
+      try {
+        setError(null)
+
+        const response = await fetch(`/api/products/${productId}`, {
+          method: "DELETE",
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to delete product")
+        }
+
+        // Update local state
+        const updatedProducts = products.filter((p) => p.id !== productId)
+        setProducts(updatedProducts)
+      } catch (err) {
+        console.error("Error deleting product:", err)
+        setError("Failed to delete product. Please try again.")
+      }
     }
   }
 
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     if (!editingProduct) return
 
-    const isNewProduct = !products.some((p) => p.id === editingProduct.id)
-    let updatedProducts
+    try {
+      setError(null)
 
-    if (isNewProduct) {
-      updatedProducts = [...products, editingProduct]
-    } else {
-      updatedProducts = products.map((p) => (p.id === editingProduct.id ? editingProduct : p))
+      const isNewProduct = !editingProduct.id || editingProduct.id === 0
+
+      const response = await fetch(isNewProduct ? "/api/products" : `/api/products/${editingProduct.id}`, {
+        method: isNewProduct ? "POST" : "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingProduct),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to ${isNewProduct ? "create" : "update"} product`)
+      }
+
+      const savedProduct = await response.json()
+
+      // Update local state
+      let updatedProducts
+      if (isNewProduct) {
+        updatedProducts = [...products, savedProduct]
+      } else {
+        updatedProducts = products.map((p) => (p.id === savedProduct.id ? savedProduct : p))
+      }
+
+      setProducts(updatedProducts)
+      setEditingProduct(null)
+      setActiveTab("browse")
+    } catch (err) {
+      console.error("Error saving product:", err)
+      setError("Failed to save product. Please try again.")
     }
-
-    setProducts(updatedProducts)
-    saveProductsToStorage(updatedProducts)
-    setEditingProduct(null)
-    setActiveTab("browse")
   }
 
   const handleCancelEdit = () => {

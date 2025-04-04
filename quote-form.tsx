@@ -11,7 +11,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { CheckCircle, Plus, Trash2, StepBackIcon as Stairs, Download, Printer } from "lucide-react"
 import ProductSelector from "./product-selector"
 import CarpetRollVisualizer from "./carpet-roll-visualizer"
-import { loadProductsFromStorage } from "./utils/csv-parser"
 
 // Import the mock products as a fallback
 import { mockProducts } from "./data/mock-products"
@@ -131,12 +130,24 @@ export default function QuoteForm() {
 
   // Load products from localStorage on initial render
   useEffect(() => {
-    const storedProducts = loadProductsFromStorage()
-    if (storedProducts && storedProducts.length > 0) {
-      setProducts(storedProducts)
-    } else {
-      setProducts(mockProducts)
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch("/api/products")
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch products")
+        }
+
+        const data = await response.json()
+        setProducts(data)
+      } catch (err) {
+        console.error("Error loading products:", err)
+        // Fall back to mock products
+        setProducts(mockProducts)
+      }
     }
+
+    fetchProducts()
   }, [])
 
   const handleChange = (field: string, value: string | any) => {
@@ -493,6 +504,92 @@ export default function QuoteForm() {
   // Handle products change from admin panel
   const handleProductsChange = (updatedProducts) => {
     setProducts(updatedProducts)
+  }
+
+  // Add a function to submit the quote to Supabase
+  const submitQuote = async () => {
+    try {
+      // Calculate total cost
+      const totalCost = calculateTotalCost()
+
+      // Calculate deposit amount
+      const depositAmount = calculateDepositAmount()
+
+      // Generate quote number and job number
+      const quoteNumber = generateQuoteNumber()
+      const jobNumber = generateJobNumber()
+
+      // Prepare quote data
+      const quoteData = {
+        quote_number: quoteNumber,
+        job_number: jobNumber,
+        customer_name: formData.name,
+        customer_email: formData.email,
+        customer_phone: formData.phone,
+        customer_address: formData.address,
+        customer_postcode: formData.postcode,
+        preferred_contact: formData.preferredContact,
+        project_timeline: formData.projectTimeline,
+        quote_type: formData.quoteType,
+        flooring_type: formData.flooringType,
+        area: formData.area,
+        color: formData.color,
+        additional_info: formData.additionalInfo,
+        selected_products: formData.selectedProducts,
+        rooms: formData.rooms,
+        extra_services: formData.extraServices,
+        payment_method: formData.paymentMethod,
+        total_cost: totalCost,
+        deposit_amount: depositAmount,
+        status: "pending",
+      }
+
+      // Submit quote to API
+      const response = await fetch("/api/quotes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(quoteData),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to submit quote")
+      }
+
+      // Show success message
+      alert(
+        "Thank you for your order! We'll process your request and contact you shortly to confirm details and arrange payment.",
+      )
+
+      // Reset form or redirect to confirmation page
+      // For now, we'll just reset the form
+      setFormData({
+        // Reset all form fields to initial state
+        name: "",
+        email: "",
+        phone: "",
+        address: "",
+        postcode: "",
+        preferredContact: "email",
+        projectTimeline: "1-3 months",
+        quoteType: "supply-only",
+        flooringType: "carpet",
+        area: "",
+        color: "",
+        additionalInfo: "",
+        selectedProducts: [],
+        rooms: [{ name: "Living Room", length: "", width: "", carpetRequired: 0, area: 0, isStairs: false, stairs: 0 }],
+        extraServices: [],
+        paymentMethod: "direct-deposit",
+        acceptTerms: false,
+      })
+      setStep(1)
+      setStepsCompleted({ 1: false, 2: false, 3: false, 4: false, 5: false })
+    } catch (error) {
+      console.error("Error submitting quote:", error)
+      alert("There was an error submitting your quote. Please try again or contact us directly.")
+    }
   }
 
   // Replace the existing step indicator with this new one
@@ -1375,15 +1472,7 @@ export default function QuoteForm() {
                 </div>
 
                 <div className="mt-4">
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      alert(
-                        "Thank you for your order! We'll process your request and contact you shortly to confirm details and arrange payment.",
-                      )
-                    }}
-                    disabled={!formData.acceptTerms}
-                  >
+                  <Button className="w-full" onClick={submitQuote} disabled={!formData.acceptTerms}>
                     Submit Order
                   </Button>
                 </div>
@@ -1410,15 +1499,7 @@ export default function QuoteForm() {
                   Next
                 </Button>
               ) : (
-                <Button
-                  className="ml-auto"
-                  onClick={() => {
-                    alert(
-                      "Thank you for your order! We'll process your request and contact you shortly to confirm details and arrange payment.",
-                    )
-                  }}
-                  disabled={!formData.acceptTerms}
-                >
+                <Button className="ml-auto" onClick={submitQuote} disabled={!formData.acceptTerms}>
                   Submit Order
                 </Button>
               )}

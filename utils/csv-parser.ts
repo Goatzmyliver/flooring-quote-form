@@ -15,7 +15,7 @@ export function parseProductCSV(csvContent: string): any[] {
   const headers = parseCSVLine(lines[0])
 
   // Required fields
-  const requiredFields = ["id", "name", "category", "price"]
+  const requiredFields = ["name", "category", "price"]
 
   // Check if all required fields are present
   for (const field of requiredFields) {
@@ -42,16 +42,20 @@ export function parseProductCSV(csvContent: string): any[] {
           let value = values[index]
 
           // Convert numeric fields
-          if (header === "price" || header === "rollWidth") {
-            value = value ? Number(value) : header === "price" ? 0 : undefined
+          if (header === "price" || header === "roll_width" || header === "rollWidth") {
+            value = value ? Number(value) : header === "price" ? 0 : null
           }
 
+          // Handle rollWidth to roll_width conversion
+          if (header === "rollWidth") {
+            product["roll_width"] = value
+          }
           // Parse colors as array
-          if (header === "colors" && value) {
-            value = value.split(",").map((color: string) => color.trim())
+          else if (header === "colors" && value) {
+            product[header] = value.split(",").map((color: string) => color.trim())
+          } else {
+            product[header] = value
           }
-
-          product[header] = value
         }
       })
 
@@ -104,29 +108,8 @@ function parseCSVLine(line: string): string[] {
   })
 }
 
-/**
- * Save products to localStorage for persistence
- * @param products Array of product objects
- */
-export function saveProductsToStorage(products: any[]): void {
-  try {
-    localStorage.setItem("flooring-products", JSON.stringify(products))
-  } catch (error) {
-    console.error("Error saving products to localStorage:", error)
-  }
-}
-
-/**
- * Load products from localStorage
- * @returns Array of product objects or null if none found
- */
-export function loadProductsFromStorage(): any[] | null {
-  try {
-    const data = localStorage.getItem("flooring-products")
-    return data ? JSON.parse(data) : null
-  } catch (error) {
-    console.error("Error loading products from localStorage:", error)
-    return null
-  }
+export const loadProductsFromStorage = () => {
+  // This function is intentionally left blank as it is not used in the project
+  return []
 }
 
